@@ -6,14 +6,14 @@ zabbix_export:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
   templates:
-    - uuid: fc8da66bea1f412a9d5ab559159bbdc2
+    - uuid: b524bf58300e4e2f998f3522cb0e1f02
       template: 'Cisco Intersight REST API-v1.0.0'
       name: 'Cisco Intersight REST API-v1.0.0'
       groups:
         - name: API
         - name: Templates
       items:
-        - uuid: 67b6ff14351247fb9464c6b49aee29b9
+        - uuid: c0700249fac64763bdec406c70ee3be8
           name: 'Intersight active faults (raw)'
           type: SCRIPT
           key: intersight.faults.raw
@@ -138,13 +138,13 @@ zabbix_export:
             });
           timeout: 60s
       discovery_rules:
-        - uuid: 5317fe69676e421b922b639146e7362b
+        - uuid: 375611ce47f8497abe99d3a0c7e3c6da
           name: 'Intersight fault discovery'
           type: DEPENDENT
           key: intersight.fault.discovery
           delay: '0'
           item_prototypes:
-            - uuid: 79db2fdb3683405f9bfd066fe0f7bd21
+            - uuid: 2f3b056ef42a4d20944bef3a9ae494ab
               name: 'intersight.alarm[{#ALARM.MOID}]'
               type: DEPENDENT
               key: 'intersight.alarm[{#ALARM.MOID}]'
@@ -158,23 +158,23 @@ zabbix_export:
               master_item:
                 key: intersight.faults.raw
               trigger_prototypes:
-                - uuid: 6bb952418b254d5ab878929a9ccc4f38
+                - uuid: fbd165dc95d64098b2efa88d41d76258
                   expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Critical"'
-                  name: 'Intersight CRITICAL alarm: {#ALARM.DESCRIPTION}'
+                  name: 'Intersight CRITICAL alarm: {#ALARM.CODE}'
                   event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
                   url: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
                   priority: DISASTER
                   manual_close: 'YES'
-                - uuid: 0e1b61f70905436e88bf0af652f78c3b
+                - uuid: 30bfffbd29854eb99a00564c0d82894f
                   expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Info"'
-                  name: 'Intersight INFO alarm: {#ALARM.DESCRIPTION}'
+                  name: 'Intersight INFO alarm: {#ALARM.CODE}'
                   event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
                   url: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
                   priority: INFO
                   manual_close: 'YES'
-                - uuid: 4397e94cb82e4960ac8119ee384171f9
+                - uuid: 99de230faf704334b8ad72a33855aa76
                   expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Warning"'
-                  name: 'Intersight WARNING alarm: {#ALARM.DESCRIPTION}'
+                  name: 'Intersight WARNING alarm: {#ALARM.CODE}'
                   event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
                   priority: WARNING
                   description: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
