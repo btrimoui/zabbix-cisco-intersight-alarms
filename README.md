@@ -62,6 +62,8 @@ Use one of the standard Read‑Only roles provided by Cisco Intersight for the s
 Official Cisco documentation
 For details on roles and privileges, see:
 🔗 https://intersight.com/help/saas/resources/RBAC#roles_and_privileges
+For details on creating OAuth token, see: 
+https://intersight.com/help/saas/settings#oauth_20_applications (you must be logged in with READ-ONLY account to generate a token with READ-ONLY access)
 
 ✅ How it works (high level)
 
