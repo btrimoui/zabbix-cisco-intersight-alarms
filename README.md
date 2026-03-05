@@ -50,9 +50,9 @@ This integration is read‑only and does not modify any resources in Cisco Inter
 ✅ A Read‑Only role in Intersight is fully sufficient for this integration.
 
 Required permissions
-Read access to:
-Alarms (cond/Alarms)
-Related managed objects referenced by alarms
+
+Read access to: Alarms (cond/Alarms) & Related managed objects referenced by alarms
+
 No write, acknowledge, or administrative privileges are required.
 
 
@@ -68,28 +68,41 @@ For details on roles and privileges, see:
 Master script item
 
 Authenticates via OAuth2
+
 Fetches alarms from /api/v1/cond/Alarms
+
 Applies API‑level filters
+
 Handles pagination
+
 Returns a single JSON payload
+
 Low‑Level Discovery
 
 Discovers alarms using alarm Moid
+
 Creates one LLD object per alarm
+
 Dependent items
 
 Extract alarm‑specific fields (severity, description, affected object)
+
 Trigger prototypes
 
 Fire when the alarm exists
+
 Close automatically when the alarm disappears
 
 ✅ API filters applied
 
-Only alarms matching all of the following are included:
+Only alarms matching all of the following are included: 
+
 Acknowledge = "None"
+
 Suppressed = false
+
 Severity != "Cleared"
+
 This ensures Zabbix reflects active, actionable alarms only.
 
 ✅ Installation steps
@@ -122,6 +135,7 @@ Macro	Description
 
 {$INTERSIGHT.PROXY}	(Optional) Proxy URL or empty
 
+
 ✅ Leave {$INTERSIGHT.PROXY} empty if no proxy is required.
 
 
@@ -139,25 +153,36 @@ Severity filtering is handled via trigger prototypes, not preprocessing.
 ✅ Problem lifecycle
 
 Intersight state	Zabbix behavior
+
 Alarm appears	Problem created
+
 Alarm acknowledged	Not discovered → Alarm disappears from API → Problem closes
+
 Alarm suppressed	Not discovered → Alarm disappears from API → Problem closes
+
 Alarm cleared	Not discovered → Alarm disappears from API → Problem closes
+
 No manual cleanup required.
 
 ⚠️ Important note about missing API data
 
 If no data is returned from the Intersight API (for example due to:
+
 API outage
+
 network or proxy failure
+
 authentication error
+
 temporary Intersight service issue),
 
 Then existing problems will NOT automatically close during that interval.
 
 
 This is intentional and by design:
+
 It prevents mass problem closure caused by transient API failures
+
 It avoids false “recovery” events when monitoring data is unavailable
 
 Once the API starts returning data again, the alarm lifecycle resumes normally.
@@ -166,7 +191,9 @@ Once the API starts returning data again, the alarm lifecycle resumes normally.
 ✅ Known limitations
 
 Acknowledgement is one‑way (Intersight → Zabbix)
+
 Intersight UI acknowledgement may take a few minutes to propagate to the API
+
 No bidirectional sync (by design)
 
 
