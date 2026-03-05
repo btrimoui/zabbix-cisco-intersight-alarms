@@ -1,0 +1,208 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 879904809f7b46e89372f02f2a99aaaf
+      name: API
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: fc8da66bea1f412a9d5ab559159bbdc2
+      template: 'Cisco Intersight REST API-v1.0.0'
+      name: 'Cisco Intersight REST API-v1.0.0'
+      groups:
+        - name: API
+        - name: Templates
+      items:
+        - uuid: 67b6ff14351247fb9464c6b49aee29b9
+          name: 'Intersight active faults (raw)'
+          type: SCRIPT
+          key: intersight.faults.raw
+          delay: 10m
+          history: 14d
+          value_type: TEXT
+          trends: '0'
+          params: |
+            /* ============================
+             * Cisco Intersight – Active Alarms
+             * OAuth2 + Optional Proxy + Pagination
+             * ============================ */
+            
+            function base64Encode(input) {
+                var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+                var output = '';
+                var i = 0;
+            
+                while (i < input.length) {
+                    var c1 = input.charCodeAt(i++);
+                    var c2 = input.charCodeAt(i++);
+                    var c3 = input.charCodeAt(i++);
+            
+                    var e1 = c1 >> 2;
+                    var e2 = ((c1 & 3) << 4) | (c2 >> 4);
+                    var e3 = ((c2 & 15) << 2) | (c3 >> 6);
+                    var e4 = c3 & 63;
+            
+                    if (isNaN(c2)) e3 = e4 = 64;
+                    else if (isNaN(c3)) e4 = 64;
+            
+                    output += chars.charAt(e1) +
+                              chars.charAt(e2) +
+                              chars.charAt(e3) +
+                              chars.charAt(e4);
+                }
+                return output;
+            }
+            
+            /* ---- Proxy handling (OPTIONAL) ---- */
+            var proxy = '{$INTERSIGHT.PROXY}';
+            
+            /* ---- HTTP client for API calls ---- */
+            var req = new HttpRequest();
+            if (proxy !== '') {
+                req.setProxy(proxy);
+            }
+            
+            /* ---- HTTP client for token request ---- */
+            var tokenReq = new HttpRequest();
+            if (proxy !== '') {
+                tokenReq.setProxy(proxy);
+            }
+            
+            /* ---- Step 1: get OAuth2 token ---- */
+            tokenReq.addHeader('Content-Type: application/x-www-form-urlencoded');
+            
+            var basicAuth = 'Basic ' + base64Encode(
+                '{$INTERSIGHT.OAUTH.CLIENT_ID}' + ':' +
+                '{$INTERSIGHT.OAUTH.CLIENT_SECRET}'
+            );
+            
+            tokenReq.addHeader('Authorization: ' + basicAuth);
+            
+            var tokenResp = tokenReq.post(
+                '{$INTERSIGHT.OAUTH.TOKEN_URL}',
+                'grant_type=client_credentials'
+            );
+            
+            var tokenData = JSON.parse(tokenResp);
+            
+            if (!tokenData.access_token) {
+                throw 'OAuth token error: ' + tokenResp;
+            }
+            
+            /* ---- Step 2: call Intersight Alarms API with pagination ---- */
+            req.addHeader('Authorization: Bearer ' + tokenData.access_token);
+            
+            var baseUrl = '{$INTERSIGHT.API.BASE_URL}' +
+                          '/api/v1/cond/Alarms?' +
+                          '$inlinecount=allpages&' +
+                          '$top=500&' +
+                          '$filter=' +
+                          'Acknowledge%20eq%20\'None\'%20and%20' +
+                          'Suppressed%20eq%20false%20and%20' +
+                          'Severity%20ne%20\'Cleared\'';
+            
+            var allResults = [];
+            var skip = 0;
+            var totalCount = null;
+            
+            while (true) {
+                var resp = JSON.parse(req.get(baseUrl + '&$skip=' + skip));
+            
+                if (totalCount === null && resp.Count !== undefined) {
+                    totalCount = resp.Count;
+                }
+            
+                if (!resp.Results || resp.Results.length === 0) {
+                    break;
+                }
+            
+                allResults = allResults.concat(resp.Results);
+            
+                if (resp.Results.length < 500) {
+                    break;
+                }
+            
+                skip += 500;
+            }
+            
+            /* ---- Debug log (optional, safe to keep) ---- */
+            Zabbix.log(4,
+                'Intersight cond/Alarms: fetched=' + allResults.length +
+                (totalCount !== null ? ' total=' + totalCount : '')
+            );
+            
+            /* ---- Return merged payload ---- */
+            return JSON.stringify({
+                Count: totalCount,
+                Results: allResults
+            });
+          timeout: 60s
+      discovery_rules:
+        - uuid: 5317fe69676e421b922b639146e7362b
+          name: 'Intersight fault discovery'
+          type: DEPENDENT
+          key: intersight.fault.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 79db2fdb3683405f9bfd066fe0f7bd21
+              name: 'intersight.alarm[{#ALARM.MOID}]'
+              type: DEPENDENT
+              key: 'intersight.alarm[{#ALARM.MOID}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.Results[?(@.Moid=="{#ALARM.MOID}")].Description'
+              master_item:
+                key: intersight.faults.raw
+              trigger_prototypes:
+                - uuid: 6bb952418b254d5ab878929a9ccc4f38
+                  expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Critical"'
+                  name: 'Intersight CRITICAL alarm: {#ALARM.DESCRIPTION}'
+                  event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
+                  url: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
+                  priority: DISASTER
+                  manual_close: 'YES'
+                - uuid: 0e1b61f70905436e88bf0af652f78c3b
+                  expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Info"'
+                  name: 'Intersight INFO alarm: {#ALARM.DESCRIPTION}'
+                  event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
+                  url: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
+                  priority: INFO
+                  manual_close: 'YES'
+                - uuid: 4397e94cb82e4960ac8119ee384171f9
+                  expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Warning"'
+                  name: 'Intersight WARNING alarm: {#ALARM.DESCRIPTION}'
+                  event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
+                  priority: WARNING
+                  description: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
+                  manual_close: 'YES'
+          master_item:
+            key: intersight.faults.raw
+          lld_macro_paths:
+            - lld_macro: '{#ALARM.AFFECTED}'
+              path: $.MsAffectedObject
+            - lld_macro: '{#ALARM.CODE}'
+              path: $.Name
+            - lld_macro: '{#ALARM.DESCRIPTION}'
+              path: $.Description
+            - lld_macro: '{#ALARM.LTT}'
+              path: $.LastTransitionTime
+            - lld_macro: '{#ALARM.MOID}'
+              path: $.Moid
+            - lld_macro: '{#ALARM.SEVERITY}'
+              path: $.Severity
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Results
+      macros:
+        - macro: '{$INTERSIGHT.API.BASE_URL}'
+          value: 'https://eu-central-1.intersight.com'
+        - macro: '{$INTERSIGHT.OAUTH.CLIENT_ID}'
+        - macro: '{$INTERSIGHT.OAUTH.CLIENT_SECRET}'
+        - macro: '{$INTERSIGHT.OAUTH.TOKEN_URL}'
+          value: 'https://eu-central-1.intersight.com/iam/token'
+        - macro: '{$INTERSIGHT.PROXY}'
