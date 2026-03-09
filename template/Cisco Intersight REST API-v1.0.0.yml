@@ -6,14 +6,14 @@ zabbix_export:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
   templates:
-    - uuid: b524bf58300e4e2f998f3522cb0e1f02
+    - uuid: adf1454bea104e70ab317bd7fa8b1309
       template: 'Cisco Intersight REST API-v1.0.0'
       name: 'Cisco Intersight REST API-v1.0.0'
       groups:
         - name: API
         - name: Templates
       items:
-        - uuid: c0700249fac64763bdec406c70ee3be8
+        - uuid: a3daf421b6b24c4e866ec598449d9b45
           name: 'Intersight active faults (raw)'
           type: SCRIPT
           key: intersight.faults.raw
@@ -24,7 +24,10 @@ zabbix_export:
           params: |
             /* ============================
              * Cisco Intersight – Active Alarms
-             * OAuth2 + Optional Proxy + Pagination
+             * Zabbix 7.x
+             * OAuth2 Client Credentials
+             * Optional Proxy
+             * Pagination support
              * ============================ */
             
             function base64Encode(input) {
@@ -53,22 +56,22 @@ zabbix_export:
                 return output;
             }
             
-            /* ---- Proxy handling (OPTIONAL) ---- */
+            /* ---- Optional proxy handling ---- */
             var proxy = '{$INTERSIGHT.PROXY}';
             
-            /* ---- HTTP client for API calls ---- */
+            /* ---- HTTP client for API requests ---- */
             var req = new HttpRequest();
             if (proxy !== '') {
                 req.setProxy(proxy);
             }
             
-            /* ---- HTTP client for token request ---- */
+            /* ---- HTTP client for OAuth token ---- */
             var tokenReq = new HttpRequest();
             if (proxy !== '') {
                 tokenReq.setProxy(proxy);
             }
             
-            /* ---- Step 1: get OAuth2 token ---- */
+            /* ---- Step 1: OAuth2 token request ---- */
             tokenReq.addHeader('Content-Type: application/x-www-form-urlencoded');
             
             var basicAuth = 'Basic ' + base64Encode(
@@ -89,7 +92,7 @@ zabbix_export:
                 throw 'OAuth token error: ' + tokenResp;
             }
             
-            /* ---- Step 2: call Intersight Alarms API with pagination ---- */
+            /* ---- Step 2: Call Intersight cond/Alarms API with pagination ---- */
             req.addHeader('Authorization: Bearer ' + tokenData.access_token);
             
             var baseUrl = '{$INTERSIGHT.API.BASE_URL}' +
@@ -125,7 +128,7 @@ zabbix_export:
                 skip += 500;
             }
             
-            /* ---- Debug log (optional, safe to keep) ---- */
+            /* ---- Debug logging (safe to keep) ---- */
             Zabbix.log(4,
                 'Intersight cond/Alarms: fetched=' + allResults.length +
                 (totalCount !== null ? ' total=' + totalCount : '')
@@ -137,14 +140,20 @@ zabbix_export:
                 Results: allResults
             });
           timeout: 60s
+          triggers:
+            - uuid: 4eb406560f4c4298a6fdaa497ee9ec60
+              expression: 'nodata(/Cisco Intersight REST API-v1.0.0/intersight.faults.raw,15m)=1'
+              name: 'Intersight API not reachable'
+              event_name: 'Critical – Intersight API {$INTERSIGHT.API.BASE_URL} not reachable'
+              priority: DISASTER
       discovery_rules:
-        - uuid: 375611ce47f8497abe99d3a0c7e3c6da
+        - uuid: 1867c1491e2944e28e613e08994b4eee
           name: 'Intersight fault discovery'
           type: DEPENDENT
           key: intersight.fault.discovery
           delay: '0'
           item_prototypes:
-            - uuid: 2f3b056ef42a4d20944bef3a9ae494ab
+            - uuid: 546906453d9e4d04a604a44a2117f059
               name: 'intersight.alarm[{#ALARM.MOID}]'
               type: DEPENDENT
               key: 'intersight.alarm[{#ALARM.MOID}]'
@@ -158,21 +167,21 @@ zabbix_export:
               master_item:
                 key: intersight.faults.raw
               trigger_prototypes:
-                - uuid: fbd165dc95d64098b2efa88d41d76258
+                - uuid: 1f84f8346e584d42b60eda6aa30569ab
                   expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Critical"'
                   name: 'Intersight CRITICAL alarm: {#ALARM.CODE}'
                   event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
                   url: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
                   priority: DISASTER
                   manual_close: 'YES'
-                - uuid: 30bfffbd29854eb99a00564c0d82894f
+                - uuid: 17a57979047f44adad71d10c529144ae
                   expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Info"'
                   name: 'Intersight INFO alarm: {#ALARM.CODE}'
                   event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
                   url: 'https://www.cisco.com/c/en/us/td/docs/unified_computing/Intersight/IMM_Alarms_Guide/b_cisco_intersight_alarms_reference_guide.html'
                   priority: INFO
                   manual_close: 'YES'
-                - uuid: 99de230faf704334b8ad72a33855aa76
+                - uuid: b8504586504f4b169955c2c3da11c430
                   expression: 'last(/Cisco Intersight REST API-v1.0.0/intersight.alarm[{#ALARM.MOID}])<>0 and "{#ALARM.SEVERITY}"="Warning"'
                   name: 'Intersight WARNING alarm: {#ALARM.CODE}'
                   event_name: '{#ALARM.LTT} |{#ALARM.CODE} {#ALARM.SEVERITY}: {#ALARM.DESCRIPTION} | {#ALARM.AFFECTED}'
